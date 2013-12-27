@@ -35,7 +35,6 @@ function showCaretPos() {
     
 }
 
-
 var Page={
 	output:{cursorPos:null,textContent:null},//output object todo other data
 	init:function()//basic initialisation
@@ -46,23 +45,29 @@ var Page={
 		this.timer=null;
 		this.cursors=[];//here is array of other cursors
 		
-		this.el=$('test');
+		
 		
 		//cache elements
-		this.caretPosEl=$('caretPos');
+		this.el=$('test');
+		this.caretPosEl=$('caretPos');//debug info for cursor position
+		this.textEl=$('textDebug');//debug info for text content
 		
 		//set editable element
 		this.el.set('contenteditable',true);
 		
 		//bind events
-		this.el.addEvent('keyup',this.showCaretPos.bind(this));
-		this.el.addEvent('mouseup',this.showCaretPos.bind(this));
+		this.el.addEvent('keyup',this.getCaretPos.bind(this));
+		this.el.addEvent('mouseup',this.getCaretPos.bind(this));
+		this.el.focus();
+		this.getCaretPos();
 	},
 	getCaretPos:function()
 	{
-		//this.caretPosEl.innerHTML = "Caret position: " + getCaretCharacterOffsetWithin(this.el);
+		this.caretPosEl.innerHTML = "Caret position: " + getCaretCharacterOffsetWithin(this.el);
+		//debug info
 		this.output.cursorPos=getCaretCharacterOffsetWithin(this.el);//store cursor position
 		
+		this.textEl.set('html',this.el.get('text'));
 		if(this.timer) clearTimeout(this.timer);//cancel previous call of data send
 		this.timer=this.sendData.delay(250,this);//call delayed send of data
 	},
@@ -80,11 +85,16 @@ window.addEvent('domready',Page.init.bind(Page));
 <style>
 #test{
 	border:1px solid #000;
+	min-height:320px;
+	max-width:640px;
 }
 </style>
 </head>
 <body>
-<div id="test">Hello, some <b>bold</b> and <i>italic and <b>bold</b></i> text</div>
+<div id="test"><div>Hello, some <b>bold</b> and <i>italic and <b>bold</b></i> text</div></div>
 <div id="caretPos"></div>
+<div>
+<pre id="textDebug"></pre>
+</div>
 </body>
 </html>
