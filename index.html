@@ -1,0 +1,90 @@
+<html>
+<head>
+<script src="mootools-core-1.4.5-full-nocompat.js"></script>
+<script>
+
+//function to get cursor position
+function getCaretCharacterOffsetWithin(element) 
+{
+    var caretOffset = 0;
+    var doc = element.ownerDocument || element.document;
+    var win = doc.defaultView || doc.parentWindow;
+    var sel;
+    if (typeof win.getSelection != "undefined") 
+    {
+        var range = win.getSelection().getRangeAt(0);
+        var preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(element);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+        caretOffset = preCaretRange.toString().length;
+    } 
+    else if ( (sel = doc.selection) && sel.type != "Control") 
+    {
+        var textRange = sel.createRange();
+        var preCaretTextRange = doc.body.createTextRange();
+        preCaretTextRange.moveToElementText(element);
+        preCaretTextRange.setEndPoint("EndToEnd", textRange);
+        caretOffset = preCaretTextRange.text.length;
+    }
+    return caretOffset;
+}
+
+function showCaretPos() {
+    var el = document.getElementById("test");
+    var caretPosEl = document.getElementById("caretPos");
+    
+}
+
+
+var Page={
+	output:{cursorPos:null,textContent:null},//output object todo other data
+	init:function()//basic initialisation
+	{
+		// see http://mootools.net/docs/core/Request/Request.JSON
+		this.sender=new Request.JSON();//define sender AJAX, todo oncomplete, onerror, set the method, set the url etc.
+		
+		this.timer=null;
+		this.cursors=[];//here is array of other cursors
+		
+		this.el=$('test');
+		
+		//cache elements
+		this.caretPosEl=$('caretPos');
+		
+		//set editable element
+		this.el.set('contenteditable',true);
+		
+		//bind events
+		this.el.addEvent('keyup',this.showCaretPos.bind(this));
+		this.el.addEvent('mouseup',this.showCaretPos.bind(this));
+	},
+	getCaretPos:function()
+	{
+		//this.caretPosEl.innerHTML = "Caret position: " + getCaretCharacterOffsetWithin(this.el);
+		this.output.cursorPos=getCaretCharacterOffsetWithin(this.el);//store cursor position
+		
+		if(this.timer) clearTimeout(this.timer);//cancel previous call of data send
+		this.timer=this.sendData.delay(250,this);//call delayed send of data
+	},
+	sendData:function()
+	{
+		this.sender.cancel();//cancel previous AJAX call
+		this.sender.send(this.output);//send actual data
+	},
+	getData:function()//get additional data, other cursors, etc
+	{
+	}
+};
+window.addEvent('domready',Page.init.bind(Page));
+</script>
+<style>
+#test{
+	border:1px solid #000;
+}
+</style>
+</head>
+<body>
+<div id="test">Hello, some <b>bold</b> and <i>italic and <b>bold</b></i> text</div>
+<div id="caretPos"></div>
+</body>
+</html>
