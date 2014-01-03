@@ -1,51 +1,34 @@
 <html>
 <head>
-<script src="mootools-core-1.4.5-full-nocompat.js"></script>
+<script src="http://drakh.dev:8088/socket.io/socket.io.js"></script>
+
+<script src="js/rangy/rangy-core.js"></script>
+<script src="js/rangy/rangy-textrange.js"></script>
+<!--
+<script src="js/rangy/rangy-highlighter.js"></script>
+<script src="js/rangy/rangy-selectionsaverestore.js"></script>
+<script src="js/rangy/rangy-serializer.js"></script>
+-->
+<script src="js/rangy/rangy-cssclassapplier.js"></script>
+
+<script src="js/mootools/mootools-core-1.4.5-full-nocompat.js"></script>
+
 <script>
 
-//function to get cursor position
-function getCaretCharacterOffsetWithin(element) 
-{
-    var caretOffset = 0;
-    var doc = element.ownerDocument || element.document;
-    var win = doc.defaultView || doc.parentWindow;
-    var sel;
-    if (typeof win.getSelection != "undefined") 
-    {
-        var range = win.getSelection().getRangeAt(0);
-        var preCaretRange = range.cloneRange();
-        preCaretRange.selectNodeContents(element);
-        preCaretRange.setEnd(range.endContainer, range.endOffset);
-        caretOffset = preCaretRange.toString().length;
-    } 
-    else if ( (sel = doc.selection) && sel.type != "Control") 
-    {
-        var textRange = sel.createRange();
-        var preCaretTextRange = doc.body.createTextRange();
-        preCaretTextRange.moveToElementText(element);
-        preCaretTextRange.setEndPoint("EndToEnd", textRange);
-        caretOffset = preCaretTextRange.text.length;
-    }
-    return caretOffset;
-}
-
-function showCaretPos() {
-    var el = document.getElementById("test");
-    var caretPosEl = document.getElementById("caretPos");
-    
-}
-
 var Page={
+	smartTypingPairs: {'"' : '"', "(" : ")", "{" : "}", "[" : "]", "<" : ">", "`" : "`"},
 	output:{cursorPos:null,textContent:null},//output object todo other data
 	init:function()//basic initialisation
 	{
-		// see http://mootools.net/docs/core/Request/Request.JSON
-		this.sender=new Request.JSON();//define sender AJAX, todo oncomplete, onerror, set the method, set the url etc.
+		rangy.init();
+		rangy.config.preferTextRange=true;
+		this.mysocketid=null;
+		this.socket=io.connect('http://drakh.dev:8088');
+		this.socket.on('mycursor',this.storeId.bind(this));
+		this.socket.on('carets',this.getCursors.bind(this));
 		
 		this.timer=null;
-		this.cursors=[];//here is array of other cursors
-		
-		
+		this.cursors={};//here is array of other cursors
 		
 		//cache elements
 		this.el=$('test');
@@ -56,34 +39,98 @@ var Page={
 		this.el.set('contenteditable',true);
 		
 		//bind events
-		this.el.addEvent('keyup',this.getCaretPos.bind(this));
-		this.el.addEvent('mouseup',this.getCaretPos.bind(this));
+		this.el.addEvent('keyup',this.sendCaretPos.bind(this));
+		this.el.addEvent('keydown',this.prepareAction.bind(this));
+		this.el.addEvent('mouseup',this.sendCaretPos.bind(this));
 		this.el.focus();
+		this.sendCaretPos();
+	},
+	keyP:function(e)
+	{
+		console.log(e);
+	},
+	gotoPos:function(pos)
+	{
+		rangy.getSelection().selectCharacters(this.el,pos,pos);
 		this.getCaretPos();
+	},
+	insertAtPos:function(pos,contents)
+	{
+		var range = rangy.createRange();
+		range.selectCharacters(this.el, pos, pos)
+		range.pasteHtml(contents);
+		this.gotoPos(pos+1);
+	},
+	getCursors:function(data)
+	{
+		this.cursors=data;
+	},
+	storeId:function(data)
+	{
+		this.mysocketid=data;
+	},
+	prepareAction:function(e)
+	{
+		var str=this.getPreCaretStr();
+		this.prevtext=str;
+		
+		var pos=this.getCaretPos();
+		switch(e.key)
+		{
+			case 'enter':
+			case 'tab':
+				e.stop();//stop the enter key
+			break;
+		}
+		if(e.key=='enter')
+		{
+			this.insertAtPos(pos,"\n");
+		}
+		else if(e.key=='tab')
+		{
+			this.insertAtPos(pos,"\t");
+		}
 	},
 	getCaretPos:function()
 	{
-		this.caretPosEl.innerHTML = "Caret position: " + getCaretCharacterOffsetWithin(this.el);
+		var str=this.getPreCaretStr();
+		return str.length;
+	},
+	getPreCaretStr:function()
+	{
+		var range=rangy.getSelection().getRangeAt(0);
+		var preCaretRange = range.cloneRange();
+		preCaretRange.selectNodeContents(this.el);
+		preCaretRange.setEnd(range.endContainer, range.endOffset);
+		var str=preCaretRange.toString();
+		return str;
+	},
+	sendCaretPos:function(e)
+	{
+		if(e && e.key)
+		{
+			var str=this.getPreCaretStr();
+			if(this.prevtext!=str)
+			{
+				//console.log('whats the diff:'+this.prevtext+"|"+str);
+			}
+		}
+		var caret=this.getCaretPos();
+		this.caretpos=caret;
+		this.caretPosEl.innerHTML = "Caret position: " + caret;
 		//debug info
-		this.output.cursorPos=getCaretCharacterOffsetWithin(this.el);//store cursor position
-		
+		this.output.cursorPos=caret;//store cursor position
 		this.textEl.set('html',this.el.get('text'));
-		if(this.timer) clearTimeout(this.timer);//cancel previous call of data send
-		this.timer=this.sendData.delay(250,this);//call delayed send of data
-	},
-	sendData:function()
-	{
-		this.sender.cancel();//cancel previous AJAX call
-		this.sender.send(this.output);//send actual data
-	},
-	getData:function()//get additional data, other cursors, etc
-	{
+		
+		this.socket.emit('caretmove',this.output);
 	}
 };
+
 window.addEvent('domready',Page.init.bind(Page));
+
 </script>
 <style>
-#test{
+.editarea{
 	border:1px solid #000;
 	min-height:320px;
 	max-width:640px;
@@ -91,7 +138,8 @@ window.addEvent('domready',Page.init.bind(Page));
 </style>
 </head>
 <body>
-<div id="test"><div>Hello, some <b>bold</b> and <i>italic and <b>bold</b></i> text</div></div>
+fukitol
+<pre id="test" class="editarea">Hello, some <b>bold</b> and <i>italic and <b>bold</b></i> text</pre>
 <div id="caretPos"></div>
 <div>
 <pre id="textDebug"></pre>
