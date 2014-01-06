@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html >
+<head >
+	<meta charset="utf-8">
+	<link rel="stylesheet" href="css/normalize.css">
+	<link rel="stylesheet" href="css/editor.css">
+
+	<script src="http://drakh.dev:8088/socket.io/socket.io.js" ></script >
+	<script src="js/rangy/rangy-core.js" ></script >
+	<script src="js/rangy/rangy-textrange.js" ></script >
+	<!--
+	<script src="js/rangy/rangy-highlighter.js"></script>
+	<script src="js/rangy/rangy-selectionsaverestore.js"></script>
+	<script src="js/rangy/rangy-serializer.js"></script>
+	-->
+	<script src="js/rangy/rangy-cssclassapplier.js" ></script >
+	<script src="js/mootools/mootools-core-1.4.5-full-nocompat.js" ></script >
+	<script src="js/markdown/parser.js" ></script >
+	<script src="js/editor.js"></script>
+	<script>
+		var Page={
+			init:function()
+			{
+				var w=$('main');
+				rangy.init();
+				this.editor=new MarkdownEditor(w,rangy);
+			}
+		};
+		window.addEvent('domready',Page.init.bind(Page));
+	</script>
+</head>
+<body>
+	<div id="main"></div>
+</body>
+</html>

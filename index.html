@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html >
 <head >
-	<meta charset="utf-8" >
+	<meta charset="utf-8">
+	<link rel="stylesheet" href="css/normalize.css">
+	<link rel="stylesheet" href="css/editor.css">
+
 	<script src="http://drakh.dev:8088/socket.io/socket.io.js" ></script >
-	<script src="js/markdown/parser.js"></script>
 	<script src="js/rangy/rangy-core.js" ></script >
 	<script src="js/rangy/rangy-textrange.js" ></script >
 	<!--
@@ -13,6 +15,7 @@
 	-->
 	<script src="js/rangy/rangy-cssclassapplier.js" ></script >
 	<script src="js/mootools/mootools-core-1.4.5-full-nocompat.js" ></script >
+	<script src="js/markdown/parser.js" ></script >
 	<script ></script >
 	<script >
 		var Page = {
@@ -20,36 +23,82 @@
 			output: {cursorPos: null, textContent: null},//output object todo other data
 			init: function ()//basic initialisation
 			{
+				/*initialise rangy*/
 				rangy.init();
 				rangy.config.preferTextRange = true;
-				this.mysocketid = null;
-				this.socket = io.connect('http://drakh.dev:8088');
-				this.socket.on('mycursor', this.storeId.bind(this));
-				this.socket.on('carets', this.getCursors.bind(this));
-				this.timer = null;
-				this.cursors = {};//here is array of other cursors
+
 				//cache elements
-				this.el = $('test');
-				this.caretPosEl = $('caretPos');//debug info for cursor position
-				this.textEl = $('textDebug');//debug info for text content
+				this.el = $('test');//our main editing element
 				//set editable element
 				this.el.set('contenteditable', true);
-				//bind events
-				this.el.addEvent('keyup', this.sendCaretPos.bind(this));
-				this.el.addEvent('keydown', this.prepareAction.bind(this));
+
+				/*prepare socket id*/
+				this.mysocketid = null;
+				/*connect to scoket*/
+				this.socket = io.connect('http://drakh.dev:8088');
+				/*bind socket events*/
+				this.socket.on('mycursor', this.storeId.bind(this));
+				this.socket.on('carets', this.getCursors.bind(this));
+				this.cursors = {};//here we will store other cursors
+				this.caretPosEl = $('caretPos');//debug info for cursor position
+				this.textEl = $('textDebug');//debug info for text content
+				//bind key events
+				//this.el.addEvent('keyup', this.parseLines.bind(this));
+				this.el.addEvent('keyup', this.parseLines.bind(this));
+				//this.el.addEvent('keydown', this.prepareAction.bind(this));
+
+				/* bind mouse event*/
 				this.el.addEvent('mouseup', this.sendCaretPos.bind(this));
-				this.el.focus();
-				this.sendCaretPos();
+				this.el.focus();//focus to element
+				this.sendCaretPos();//initial caret position
 			},
-			keyP: function (e)
+			parseLines: function (e)
 			{
-				console.log(e);
+				var pos=this.getCaretPos();
+				console.log("pos before parse:"+pos);
+				var w=this.el;
+				var text=w.get('text');
+				var lines=[];
+				var tw = w.getElements('p.line_container');
+				console.log(tw);
+				if(tw.length>0)
+				{
+					for(var i=0;i<tw.length;i++)
+					{
+						console.log('fok|'+tw[i].get('text')+'|');
+						lines[i]=tw[i].get('text').trim();
+						console.log('line: '+i+"|"+lines[i]);
+					}
+				}
+				else
+				{
+					lines=text.split(/\r?\n/);
+				}
+				w.empty();
+				console.log(lines);
+				for(var i=0;i<lines.length;i++)
+				{
+					var line=lines[i];
+					var line_el=Parser.line(line);
+					line_el.addEvent('focus',this.focFun.pass(i,this));
+					line_el.inject(w);
+				}
+				w.focus();
+				this.gotoPos(pos);
+				console.log("pos after parse:"+pos);
+				console.log(this.getCaretPos());
 			},
+			focFun:function(i)
+			{
+				console.log("focus:"+i);
+			},
+			/*function to move caret to position*/
 			gotoPos: function (pos)
 			{
 				rangy.getSelection().selectCharacters(this.el, pos, pos);
-				this.getCaretPos();
+				//this.sendCaretPos();
 			},
+			/* function to insert HTML content on given position*/
 			insertAtPos: function (pos, contents)
 			{
 				var range = rangy.createRange();
@@ -57,14 +106,17 @@
 				range.pasteHtml(contents);
 				this.gotoPos(pos + 1);
 			},
+			/* store cursors recieved from socket*/
 			getCursors: function (data)
 			{
 				this.cursors = data;
 			},
+			/* store my socket identification*/
 			storeId: function (data)
 			{
 				this.mysocketid = data;
 			},
+			/* function to handle key down events for special cases - enter, tab, etc..*/
 			prepareAction: function (e)
 			{
 				var str = this.getPreCaretStr();
@@ -79,11 +131,11 @@
 				}
 				if (e.key == 'enter')
 				{
-					this.insertAtPos(pos, "\n");
+					//this.insertAtPos(pos, "\n");
 				}
 				else if (e.key == 'tab')
 				{
-					this.insertAtPos(pos, "\t");
+					//this.insertAtPos(pos, "\t");
 				}
 			},
 			getCaretPos: function ()
@@ -102,6 +154,7 @@
 			},
 			sendCaretPos: function (e)
 			{
+				/*
 				if (e && e.key)
 				{
 					var str = this.getPreCaretStr();
@@ -110,31 +163,25 @@
 						//console.log('whats the diff:'+this.prevtext+"|"+str);
 					}
 				}
+				*/
 				var caret = this.getCaretPos();
 				this.caretpos = caret;
 				this.caretPosEl.innerHTML = "Caret position: " + caret;
 				//debug info
 				this.output.cursorPos = caret;//store cursor position
+				this.output.textContent=this.el.get('text');
 				this.textEl.set('html', this.el.get('text'));
 				this.socket.emit('caretmove', this.output);
 			}
 		};
 		window.addEvent('domready', Page.init.bind(Page));
 	</script >
-	<style >
-		.editarea
-		{
-			border: 1px solid #000;
-			min-height: 320px;
-			max-width: 640px;
-		}
-	</style >
 </head >
 <body >
-<pre id="test" class="editarea" >Hello, some <b >bold</b > and <i >italic and <b >bold</b ></i > text</pre>
+<div id="test" class="editor"></div>
 <div id="caretPos" ></div >
-<div >
-	<pre id="textDebug" ></pre >
+<div>
+	<pre id="textDebug"></pre>
 </div >
 </body >
 </html >

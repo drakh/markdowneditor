@@ -1,23 +1,5 @@
-/*
-
- Parser.js
-
- */
-/*
- Editor.prototype.parserLines = function (lines) {
- if (typeof lines == "string") lines = lines.split(/\r?\n/);
- lines = lines.slice();
- var fragment = document.createDocumentFragment(), line, value;
- while (lines.length) {
- value = lines.shift();
- line = Parser.line(value, this.tag_container, this.tab_width, this.em_width);
- fragment.appendChild(line);
- }
- return fragment;
- };
- */
-var Parser = {
-
+var MarkdownParser = new Class({
+	Implements: Options,
 	/* Block */
 	tab: /^(\t+)(.*)/,
 	header: /^(#{1,}\s)(.*)/,
@@ -28,56 +10,59 @@ var Parser = {
 	em: /^(_)(?=\S)([^\0]*?\S)(_)(?!_)|^(\*)(?=\S)([^\0]*?\S)(\*)(?!\*)/,
 	del: /^(-)(?=\S)([^\0]*?\S)(-)(?!-)/,
 	text: /^[^\0]+?(?=[_*-]|$)/,
-	pre: document.createElement("pre"),
+	initialize: function ()
+	{
+		this.pre = new Element('pre');
+	},
 	escape: function (str)
 	{
-		Parser.pre.textContent = str;
-		return Parser.pre.innerHTML;
+		var pre = this.pre;
+		pre.set('text', str);
+		return pre.get('html');
 	},
-	line: function (text, tag, tab_width, em_width)
+	line: function (text)
 	{
-		var match, line, value, width;
-		line = document.createElement(tag);
-		if (match = Parser.tab.exec(text))
+		var match, value;
+		var line = {value: '', class: ''};
+		var parsed = false;
+		if (match = this.tab.exec(text))
 		{
-			line.classList.add("code");
-			width = match[1].length * tab_width;
-			line.style.marginLeft = width + "px";
-			value = "<span class=\"tab\" style=\"margin-left:-" + width + "px;\">" + match[1] + "</span>" + Parser.inline(match[2]);
+			parsed = true;
+			line.class = 'code';
+			value = '<span class="tab">' + match[1] + '</span>' + Parser.inline(match[2]);
 		}
-		if (match = Parser.header.exec(text))
+		if (match = this.header.exec(text))
 		{
-			line.classList.add("header");
-			width = match[1].length * em_width;
-			value = "<span style=\"margin-left:-" + width + "px;\">" + match[1] + "</span>" + "<strong>" + Parser.inline(match[2]) + "</srong>";
+			parsed = true;
+			var h_class = 'h' + (match[1].length-1);
+			line.class = h_class;
+			value = '<span class="' + h_class + '">' + match[1] + '</span>' + this.inline(match[2]);
 		}
-		if (match = Parser.blockquote.exec(text))
+		if (match = this.blockquote.exec(text))
 		{
-			line.classList.add("blockquote");
-			width = match[1].length * em_width;
-			line.style.marginLeft = width + "px";
-			value = "<span style=\"margin-left:-" + width + "px;\">" + match[1] + "</span>" + Parser.inline(match[3]);
+			parsed = true;
+			line.class = 'blockquote';
+			value = '<span class="blockquote">' + match[1] + '</span>' + this.inline(match[3]);
 		}
-		if (match = Parser.list.exec(text))
+		if (match = this.list.exec(text))
 		{
-			line.classList.add("list");
-			width = match[1].length * em_width;
-			var todo = match[1] == "+ " || match[1] == "- " ? "<span class=\"todo\">" + match[1][0] + "</span> " : match[1];
-			// si es "+" se marca como completado
+			parsed = true;
+			line.class = 'list';
+			var todo = match[1] == "+ " || match[1] == "- " ? '<span class="todo">' + match[1][0] + '</span> ' : match[1];
 			if (match[1] == "+ ")
 			{
-				value = "<span style=\"margin-left:-" + width + "px;\">" + todo + "</span><del>" + Parser.inline(match[2]) + "</del>";
-			} else
+				value = '<span>' + todo + '</span><del>' + this.inline(match[2]) + '</del>';
+			}
+			else
 			{
-				value = "<span style=\"margin-left:-" + width + "px;\">" + todo + "</span>" + Parser.inline(match[2]);
+				value = '<span>' + todo + '</span>' + this.inline(match[2]);
 			}
 		}
-		if (!line.classList.length)
+		if (parsed === false)
 		{
-			line.classList.add("paragraph");
-			value = Parser.inline(text);
+			value = this.inline(text);
 		}
-		line.innerHTML = value;
+		line.value = value;
 		return line;
 	},
 	inline: function (text)
@@ -85,55 +70,36 @@ var Parser = {
 		var match, line = [], value, tag;
 		while (text)
 		{
-			if (match = Parser.strong.exec(text))
+			if (match = this.strong.exec(text))
 			{
 				tag = match[1] || match[4];
-				value = tag + "<strong>" + Parser.escape(match[2] || match[5]) + "</strong>" + tag;
+				value = tag + '<strong>' + this.escape(match[2] || match[5]) + '</strong>' + tag;
 				line.push(value);
 				text = text.slice(match[0].length);
 				continue;
 			}
-			if (match = Parser.em.exec(text))
+			if (match = this.em.exec(text))
 			{
 				tag = match[1] || match[4];
-				value = tag + "<em>" + Parser.escape(match[2] || match[5]) + "</em>" + tag;
+				value = tag + "<em>" + this.escape(match[2] || match[5]) + "</em>" + tag;
 				line.push(value);
 				text = text.slice(match[0].length);
 				continue;
 			}
-			if (match = Parser.del.exec(text))
+			if (match = this.del.exec(text))
 			{
-				value = "-<del>" + Parser.escape(match[2]) + "</del>-";
+				value = "-<del>" + this.escape(match[2]) + "</del>-";
 				line.push(value);
 				text = text.slice(match[0].length);
 				continue;
 			}
-			if (match = Parser.text.exec(text))
+			if (match = this.text.exec(text))
 			{
-				line.push(Parser.escape(match[0]));
+				line.push(this.escape(match[0]));
 				text = text.slice(match[0].length);
 				continue;
 			}
 		}
 		return line.join("");
-	},
-	newline: function (text)
-	{
-		var match, value = "", newvalue = "";
-		/* Parseamos el texto */
-		if (match = Parser.tab.exec(text))
-		{
-			value = newvalue = match[1];
-		}
-		if (match = Parser.list.exec(text))
-		{
-			value = newvalue = match[1], numeric = value.split(".");
-			if (numeric.length > 1)
-			{
-				numeric[0]++;
-				newvalue = numeric.join(".")
-			}
-		}
-		return [value, newvalue];
 	}
-};
+});
