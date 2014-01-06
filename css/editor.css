@@ -5,10 +5,18 @@ body
 	color: #000;
 	background-color: #FFF;
 }
+
 .editor *
 {
 	white-space: pre-wrap;
+	outline: none;
 }
+
+.editor em.underline
+{
+	text-decoration: underline;
+}
+
 .editor
 {
 	width: 600px;
@@ -16,19 +24,23 @@ body
 	margin-right: auto;
 	min-height: 300px;
 }
+
 .editor p.line_container
 {
 	padding: 0px;
 	margin: 0px;
-	border: 1px solid #eee;
+	border: 1px solid #F3F5F7;
 	margin-bottom: 5px;
 	line-height: 1.2em;
 	min-height: 1.2em;
+
 }
-.editor p.line_container:focus
+
+.editor p.line_container.blockquote
 {
-	border-color: #954121;
+	color: #252519;
 }
+
 .editor p.line_container span.h1,
 .editor p.line_container span.h2,
 .editor p.line_container span.h3,
@@ -36,38 +48,50 @@ body
 .editor p.line_container span.h5,
 .editor p.line_container span.h6
 {
-	border: 1px solid #000;
 	display: inline-block;
 	text-align: left;
 }
+
+.editor p.line_container.list
+{
+	padding-left: 4em;
+}
+
 .editor p.line_container.h1,
 .editor p.line_container.h2,
 .editor p.line_container.h3,
 .editor p.line_container.h4,
 .editor p.line_container.h5,
-.editor p.line_container.h6 {
+.editor p.line_container.h6
+{
 	font-weight: bold;
 }
+
 .editor p.line_container.h1
 {
 	font-size: 160%;
 }
+
 .editor p.line_container.h2
 {
 	font-size: 150%;
 }
+
 .editor p.line_container.h3
 {
 	font-size: 140%;
 }
+
 .editor p.line_container.h4
 {
 	font-size: 130%;
 }
+
 .editor p.line_container.h5
 {
 	font-size: 120%;
 }
+
 .editor p.line_container.h6
 {
 	font-size: 110%;

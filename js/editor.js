@@ -6,17 +6,28 @@ var MarkdownEditor = new Class({
 		this.el = new Element('div', {'class': 'editor'}).inject(el);//create editor element
 		this.el.blur();
 		this.range = range;
+		this.keyboard = new Keyboard(
+			{
+				events:
+				{
+					'keydown:enter':this.insertLine.bind(this),
+					'keydown:backspace':this.doBackspace.bind(this),
+					'keydown:delete':this.doDelete.bind(this)
+				}
+			}
+		).activate();
 		this.lines = [];
 		this.lines[0] = this.createLine(0).inject(this.el);
-		this.el.addEvent('keydown', this.prepareKey.bind(this));
 		this.el.addEvent('keyup', this.afterKey.bind(this));
 		this.lines[0].focus();
+		this.focused(0);
 	},
 	createLine: function (i)
 	{
-		var el = new Element('p').addClass('line_container').setProperty('contenteditable', true).addEvents({
+		var el = new Element('p').addClass('line_container').setProperties({'contenteditable': true,'spellcheck':false}).addEvents({
 			'blur': this.blurred.pass(i, this),
-			'focus': this.focused.pass(i, this)
+			'focus': this.focused.pass(i, this),
+			'mousedown':this.focused.pass(i,this)
 		});
 		return el;
 	},
@@ -25,24 +36,8 @@ var MarkdownEditor = new Class({
 	},
 	focused: function (i)
 	{
-		console.log('focused:' + i);
+		console.log('focus:'+i);
 		this.current_line = i;
-	},
-	prepareKey: function (e)
-	{
-		switch (e.key)
-		{
-			case 'enter':
-				//case 'backspace':
-				e.stop();
-				break;
-		}
-		switch (e.key)
-		{
-			case 'enter':
-				this.insertLine();
-				break;
-		}
 	},
 	afterKey: function (e)
 	{
@@ -50,7 +45,11 @@ var MarkdownEditor = new Class({
 		{
 			case 'left':
 			case 'right':
+			case 'up':
+			case 'down':
+			case 'backspace':
 			case 'enter':
+				//we do not need to parse here
 				break;
 			default :
 				this.parseLines();
@@ -66,8 +65,62 @@ var MarkdownEditor = new Class({
 		var str = preCaretRange.toString();
 		return str;
 	},
-	insertLine: function ()
+	doDelete:function(e)
 	{
+		var tmp=[];
+		var lines = this.lines;
+		var cl = this.current_line;
+		var current_line = lines[cl];
+		var txt = current_line.get('text');
+		var pos = this.getCaretPos(current_line);
+		if(pos==txt.length && cl<lines.length-1)
+		{
+			e.stop();
+		}
+	},
+	doBackspace: function (e)
+	{
+		var tmp=[];
+		var lines = this.lines;
+		var cl = this.current_line;
+		var current_line = lines[cl];
+		var txt = current_line.get('text');
+		var pos = this.getCaretPos(current_line);
+		if(pos==0 && cl>0)
+		{
+			e.stop();
+			for(var i=0;i<lines.length;i++)
+			{
+				console.log(i+'|'+cl);
+				var l_txt=lines[i].get('text');
+				if(i<cl-1)
+				{
+					console.log('smaller: '+i);
+					tmp[i]=this.createLine(i).set('text',l_txt);
+				}
+				else if(i==cl-1)
+				{
+					pos=l_txt.length;
+					console.log('one before: '+i);
+					tmp[i]=this.createLine(i).set('text',l_txt+txt);
+				}
+				else if(i>cl)
+				{
+					console.log('after: '+i+'|'+(i-1));
+					tmp[i-1]=this.createLine(i-1).set('text',l_txt);
+				}
+			}
+			this.doLines(tmp);
+			tmp[cl-1].focus();
+			this.focused(cl-1);
+			this.gotoPos(tmp[cl-1],pos);
+			this.lines=tmp;
+			this.parseLines();
+		}
+	},
+	insertLine: function (e)
+	{
+		e.stop();
 		var lines = this.lines;
 		var cl = this.current_line;
 		var current_line = lines[cl];
@@ -77,7 +130,6 @@ var MarkdownEditor = new Class({
 		txts[0] = txt.substr(0, pos);
 		txts[1] = txt.substr(pos, txt.length);
 		var tmp = [];
-
 		for (var i = 0; i < cl; i++)
 		{
 			var l_txt = lines[i].get('text');
@@ -86,18 +138,17 @@ var MarkdownEditor = new Class({
 		var s = tmp.length;
 		tmp[s] = this.createLine(s).set('text', txts[0]);
 		tmp[s + 1] = this.createLine(s).set('text', txts[1]);
-		for(var i=cl+1;i<lines.length;i++)
+		for (var i = cl + 1; i < lines.length; i++)
 		{
 			var l_txt = lines[i].get('text');
-			tmp[i+1] = this.createLine(i).set('text', l_txt);
+			tmp[i + 1] = this.createLine(i).set('text', l_txt);
 		}
-		console.log(tmp);
 		this.doLines(tmp);
-		console.log(s + 1);
 		tmp[s + 1].focus();
+		this.focused(s+1);
 		this.gotoPos(tmp[s + 1], 0);
 		this.lines = tmp;
-		this.current_line=s+1;
+		this.current_line = s + 1;
 		this.parseLines();
 	},
 	getCaretPos: function (el)
@@ -128,6 +179,19 @@ var MarkdownEditor = new Class({
 		els[current_line].focus();
 		this.gotoPos(els[current_line], pos);
 		this.lines = els;
+		this.reformatSpans();
+	},
+	reformatSpans:function()
+	{
+		var els=this.el.getElements('span.format');
+		for(var i=0;i<els.length;i++)
+		{
+			var el=els[i];
+			var sz=el.getSize();
+			el.setStyles({
+				'margin-left':(-1*(sz.x))
+			});
+		}
 	},
 	doLines: function (lines)
 	{
