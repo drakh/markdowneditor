@@ -25,7 +25,7 @@ body
 	min-height: 300px;
 }
 
-.editor p.line_container
+.editor p.block_container
 {
 	padding: 0px;
 	margin: 0px;
@@ -36,63 +36,74 @@ body
 
 }
 
-.editor p.line_container.blockquote
+.editor.dohighlight p.block_container.highlighted
 {
-	color: #252519;
+	opacity: 1;
 }
 
-.editor p.line_container span.h1,
-.editor p.line_container span.h2,
-.editor p.line_container span.h3,
-.editor p.line_container span.h4,
-.editor p.line_container span.h5,
-.editor p.line_container span.h6
+.editor.dohighlight p.block_container
+{
+	opacity: 0.2;
+}
+
+.editor p.block_container.blockquote
+{
+	color: #252519;
+	padding-left: 1em;
+}
+
+.editor p.block_container span.h1,
+.editor p.block_container span.h2,
+.editor p.block_container span.h3,
+.editor p.block_container span.h4,
+.editor p.block_container span.h5,
+.editor p.block_container span.h6
 {
 	display: inline-block;
 	text-align: left;
 }
 
-.editor p.line_container.list
+.editor p.block_container.list
 {
 	padding-left: 4em;
 }
 
-.editor p.line_container.h1,
-.editor p.line_container.h2,
-.editor p.line_container.h3,
-.editor p.line_container.h4,
-.editor p.line_container.h5,
-.editor p.line_container.h6
+.editor p.block_container.h1,
+.editor p.block_container.h2,
+.editor p.block_container.h3,
+.editor p.block_container.h4,
+.editor p.block_container.h5,
+.editor p.block_container.h6
 {
 	font-weight: bold;
 }
 
-.editor p.line_container.h1
+.editor p.block_container.h1
 {
 	font-size: 160%;
 }
 
-.editor p.line_container.h2
+.editor p.block_container.h2
 {
 	font-size: 150%;
 }
 
-.editor p.line_container.h3
+.editor p.block_container.h3
 {
 	font-size: 140%;
 }
 
-.editor p.line_container.h4
+.editor p.block_container.h4
 {
 	font-size: 130%;
 }
 
-.editor p.line_container.h5
+.editor p.block_container.h5
 {
 	font-size: 120%;
 }
 
-.editor p.line_container.h6
+.editor p.block_container.h6
 {
 	font-size: 110%;
 }

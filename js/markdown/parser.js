@@ -20,7 +20,7 @@ var MarkdownParser = new Class({
 		pre.set('text', str);
 		return pre.get('html');
 	},
-	line: function (text)
+	block: function (text)
 	{
 		var match, value;
 		var line = {value: '', class: ''};

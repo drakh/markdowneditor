@@ -1,60 +1,129 @@
 var MarkdownEditor = new Class({
 	Implements: Options,
+	smartTypingPairs: {'"': '"', '(': ')', '{': '}', '[': ']', '<': '>', '`': '`', "'": "'"},
 	initialize: function (el, range)
 	{
+		this.dohighlight = false;
 		this.parser = new MarkdownParser();//initialise parser
-		this.el = new Element('div', {'class': 'editor'}).inject(el);//create editor element
+		this.el = new Element('div', {'class': 'editor'}).setProperties({'contenteditable': true, 'spellcheck': false}).addEvents({
+			'keydown': this.prepareKey.bind(this),
+			'keyup': this.getPos.bind(this),
+			'keypress': this.keyLog.bind(this)
+		}).inject(el);//create editor element
 		this.el.blur();
 		this.range = range;
-		this.keyboard = new Keyboard(
-			{
-				events:
-				{
-					'keydown:enter':this.insertLine.bind(this),
-					'keydown:backspace':this.doBackspace.bind(this),
-					'keydown:delete':this.doDelete.bind(this)
-				}
-			}
-		).activate();
-		this.lines = [];
-		this.lines[0] = this.createLine(0).inject(this.el);
-		this.el.addEvent('keyup', this.afterKey.bind(this));
-		this.lines[0].focus();
+		this.blocks = [];
+		this.blocks[0] = this.createBlock(0);
+		this.doBlocks(this.blocks);
+		this.blocks[0].focus();
 		this.focused(0);
 	},
-	createLine: function (i)
+	keyLog: function (e)
 	{
-		var el = new Element('p').addClass('line_container').setProperties({'contenteditable': true,'spellcheck':false}).addEvents({
-			'blur': this.blurred.pass(i, this),
-			'focus': this.focused.pass(i, this),
-			'mousedown':this.focused.pass(i,this)
-		});
+		console.log('keypress:'+e.key);
+		console.log(e);
+		if (this.smartTypingPairs[e.key])
+		{
+			e.stop();
+			var current_block = this.blocks[this.current_block];
+			var txt = current_block.get('text');
+			var start_pos = this.getCaretPos(current_block);
+			if (start_pos < txt.length)
+			{
+				this.range.getSelection().expand('word');
+				var end_pos = this.getCaretPos(current_block);
+				this.insertAtPos(current_block, start_pos, e.key);
+				this.insertAtPos(current_block, end_pos + 1, this.smartTypingPairs[e.key]);
+			}
+			else
+			{
+				this.insertAtPos(current_block, start_pos, e.key + this.smartTypingPairs[e.key]);
+			}
+		}
+		else
+		{
+			switch (e.key)
+			{
+				case 'left':
+				case 'right':
+				case 'top':
+				case 'down':
+				case 'backspace':
+				case 'delete':
+				case 'enter':
+					break;
+				default:
+					this.parseBlocks();
+					break;
+			}
+		}
+	},
+	getPos: function (e)
+	{
+		var pos = this.getCaretPos(this.el);
+		console.log('keyuppos:' + pos);
+		console.log(pos);
+	},
+	doHighlight: function (e)
+	{
+		e.stop();
+		if (this.dohighlight === false)
+		{
+			this.el.addClass('dohighlight');
+			this.dohighlight = true;
+		}
+		else
+		{
+			this.el.removeClass('dohighlight');
+			this.dohighlight = false;
+		}
+	},
+	createBlock: function (i)
+	{
+		var el = new Element('p').addClass('block_container');
 		return el;
 	},
-	blurred: function (i)
+	prepareKey: function (e)
 	{
+		console.log(e);
+		var pos = this.getCaretPos(this.el);
+		console.log('keydownpos:' + pos);
+		if (e && e.key)
+		{
+			switch (e.key)
+			{
+				case 'enter':
+					e.stop();
+					this.insertBlock(e);
+					break;
+				case 'backspace':
+					e.stop();
+					this.doBackspace(e);
+					break;
+				case 'delete':
+					e.stop();
+					this.doDelete(e);
+					break;
+				case 'd':
+					if (e.control)
+					{
+						e.stop();
+						this.doHighlight(e);
+					}
+					break;
+			}
+		}
 	},
 	focused: function (i)
 	{
-		console.log('focus:'+i);
-		this.current_line = i;
-	},
-	afterKey: function (e)
-	{
-		switch (e.key)
+		console.log('focus: ' + i);
+		var blocks = this.blocks;
+		for (var k = 0; k < blocks.length; k++)
 		{
-			case 'left':
-			case 'right':
-			case 'up':
-			case 'down':
-			case 'backspace':
-			case 'enter':
-				//we do not need to parse here
-				break;
-			default :
-				this.parseLines();
-				break;
+			blocks[k].removeClass('highlighted');
 		}
+		blocks[i].addClass('highlighted');
+		this.current_block = i;
 	},
 	getPreCaretStr: function (el)
 	{
@@ -65,91 +134,132 @@ var MarkdownEditor = new Class({
 		var str = preCaretRange.toString();
 		return str;
 	},
-	doDelete:function(e)
+	doDelete: function (e)
 	{
-		var tmp=[];
-		var lines = this.lines;
-		var cl = this.current_line;
-		var current_line = lines[cl];
-		var txt = current_line.get('text');
-		var pos = this.getCaretPos(current_line);
-		if(pos==txt.length && cl<lines.length-1)
+		var tmp = [];
+		var blocks = this.blocks;
+		var cl = this.current_block;
+		var current_block = blocks[cl];
+		var txt = current_block.get('text');
+		var pos = this.getCaretPos(current_block);
+		if (pos == txt.length && cl < blocks.length - 1)
 		{
-			e.stop();
+			e.stop();//prevent default action
+			//iterate thru blocks
+			for (var i = 0; i < blocks.length; i++)
+			{
+				var l_txt = blocks[i].get('text');
+				if (i < cl)
+				{
+					//copy previous blocks
+					tmp[i] = this.createBlock(i).set('text', l_txt);
+				}
+				else if (i == cl)
+				{
+					//merge current block with next block
+					l_txt = blocks[i + 1].get('text');
+					tmp[i] = this.createBlock(i).set('text', txt + l_txt);
+				}
+				else if (i > cl + 1)
+				{
+					//add remaining blocks
+					tmp[i - 1] = this.createBlock(i - 1).set('text', l_txt);
+				}
+			}
+			this.doBlocks(tmp);
+			tmp[cl].focus();
+			//this.focused(cl);
+			this.gotoPos(tmp[cl], pos);
+			this.parseBlocks();
 		}
 	},
 	doBackspace: function (e)
 	{
-		var tmp=[];
-		var lines = this.lines;
-		var cl = this.current_line;
-		var current_line = lines[cl];
-		var txt = current_line.get('text');
-		var pos = this.getCaretPos(current_line);
-		if(pos==0 && cl>0)
+		console.log(e);
+		e.stopPropagation();
+		var tmp = [];
+		//cache data
+		var blocks = this.blocks;
+		var cl = this.current_block;
+		var current_block = blocks[cl];
+		var txt = current_block.get('text');
+		var pos = this.getCaretPos(current_block);
+		//if we are on the begining of the block and block is not the first block do custom backspace action
+		if (pos == 0 && cl > 0)
 		{
-			e.stop();
-			for(var i=0;i<lines.length;i++)
+			e.stop();//prevent default action of event
+			//iterate thru blocks
+			for (var i = 0; i < blocks.length; i++)
 			{
-				console.log(i+'|'+cl);
-				var l_txt=lines[i].get('text');
-				if(i<cl-1)
+				var l_txt = blocks[i].get('text');
+				if (i < cl - 1)
 				{
-					console.log('smaller: '+i);
-					tmp[i]=this.createLine(i).set('text',l_txt);
+					//add blocks before current block
+					tmp[i] = this.createBlock(i).set('text', l_txt);
 				}
-				else if(i==cl-1)
+				else if (i == cl - 1)
 				{
-					pos=l_txt.length;
-					console.log('one before: '+i);
-					tmp[i]=this.createLine(i).set('text',l_txt+txt);
+					//merge current block with previous block
+					pos = l_txt.length;
+					tmp[i] = this.createBlock(i).set('text', l_txt + txt);
 				}
-				else if(i>cl)
+				else if (i > cl)
 				{
-					console.log('after: '+i+'|'+(i-1));
-					tmp[i-1]=this.createLine(i-1).set('text',l_txt);
+					//ad remaining blocks
+					tmp[i - 1] = this.createBlock(i - 1).set('text', l_txt);
 				}
 			}
-			this.doLines(tmp);
-			tmp[cl-1].focus();
-			this.focused(cl-1);
-			this.gotoPos(tmp[cl-1],pos);
-			this.lines=tmp;
-			this.parseLines();
+			//reinsert blocks
+			this.doBlocks(tmp);
+			//focus on current block
+			tmp[cl - 1].focus();
+			//this.focused(cl - 1);
+			//move carret to right position
+			this.gotoPos(tmp[cl - 1], pos);
+			//reparse content
+			this.parseBlocks();
 		}
 	},
-	insertLine: function (e)
+	insertBlock: function (e)
 	{
-		e.stop();
-		var lines = this.lines;
-		var cl = this.current_line;
-		var current_line = lines[cl];
-		var txt = current_line.get('text');
+		e.stop();//prevent default action of event
+		//cache data
+		var blocks = this.blocks;
+		var cl = this.current_block;
+		var current_block = blocks[cl];
+		var txt = current_block.get('text');
 		var txts = ['', ''];
-		var pos = this.getCaretPos(current_line);
+		var pos = this.getCaretPos(current_block);
 		txts[0] = txt.substr(0, pos);
 		txts[1] = txt.substr(pos, txt.length);
 		var tmp = [];
-		for (var i = 0; i < cl; i++)
+		for (var i = 0; i < blocks.length; i++)//iterate thru blocks
 		{
-			var l_txt = lines[i].get('text');
-			tmp[i] = this.createLine(i).set('text', l_txt);
+			var l_txt = blocks[i].get('text');
+			if (i < cl)
+			{
+				tmp[i] = this.createBlock(i).set('text', l_txt);
+			}
+			else if (i == cl)//split the current block or add new one
+			{
+			}
+			else//add remaining blocks
+			{
+			}
 		}
 		var s = tmp.length;
-		tmp[s] = this.createLine(s).set('text', txts[0]);
-		tmp[s + 1] = this.createLine(s).set('text', txts[1]);
-		for (var i = cl + 1; i < lines.length; i++)
+		tmp[s] = this.createBlock(s).set('text', txts[0]);
+		tmp[s + 1] = this.createBlock(s).set('text', txts[1]);
+		for (var i = cl + 1; i < blocks.length; i++)
 		{
-			var l_txt = lines[i].get('text');
-			tmp[i + 1] = this.createLine(i).set('text', l_txt);
+			var l_txt = blocks[i].get('text');
+			tmp[i + 1] = this.createBlock(i).set('text', l_txt);
 		}
-		this.doLines(tmp);
+		this.doBlocks(tmp);
 		tmp[s + 1].focus();
-		this.focused(s+1);
+		this.focused(s + 1);
 		this.gotoPos(tmp[s + 1], 0);
-		this.lines = tmp;
-		this.current_line = s + 1;
-		this.parseLines();
+		this.parseBlocks();
 	},
 	getCaretPos: function (el)
 	{
@@ -160,46 +270,53 @@ var MarkdownEditor = new Class({
 	{
 		this.range.getSelection().selectCharacters(el, pos, pos);
 	},
-	parseLines: function ()
+	insertAtPos: function (el, pos, contents)
 	{
-		var w = this.el;
-		var lines = this.lines;
-		var current_line = this.current_line;
+		var range = this.range.createRange();
+		range.selectCharacters(el, pos, pos);
+		range.pasteHtml(contents);
+		this.gotoPos(el, pos + contents.length);
+	},
+	parseBlocks: function ()
+	{
+		var blocks = this.blocks;
+		var current_block = this.current_block;
 		var els = [];
-		var pos = this.getCaretPos(lines[current_line]);
-		for (var i = 0; i < lines.length; i++)
+		var pos = this.getCaretPos(blocks[current_block]);
+		for (var i = 0; i < blocks.length; i++)
 		{
-			var line = lines[i];
-			var text = line.get('text')
-			var parsed_line = this.parser.line(text);
-			var el = this.createLine(i).addClass(parsed_line.class).set('html', parsed_line.value);
+			var block = blocks[i];
+			var text = block.get('text')
+			var parsed_block = this.parser.block(text);
+			var el = this.createBlock(i).addClass(parsed_block.class).set('html', parsed_block.value);
 			els[i] = el;
 		}
-		this.doLines(els);
-		els[current_line].focus();
-		this.gotoPos(els[current_line], pos);
-		this.lines = els;
+		this.doBlocks(els);
+		els[current_block].focus();
+		//this.focused(current_block);
+		this.gotoPos(els[current_block], pos);
 		this.reformatSpans();
 	},
-	reformatSpans:function()
+	reformatSpans: function ()
 	{
-		var els=this.el.getElements('span.format');
-		for(var i=0;i<els.length;i++)
+		var els = this.el.getElements('span.format');
+		for (var i = 0; i < els.length; i++)
 		{
-			var el=els[i];
-			var sz=el.getSize();
+			var el = els[i];
+			var sz = el.getSize();
 			el.setStyles({
-				'margin-left':(-1*(sz.x))
+				'margin-left': (-1 * (sz.x))
 			});
 		}
 	},
-	doLines: function (lines)
+	doBlocks: function (blocks)
 	{
 		var w = this.el;
 		w.empty();
-		for (var i = 0; i < lines.length; i++)
+		for (var i = 0; i < blocks.length; i++)
 		{
-			lines[i].inject(w);
+			blocks[i].inject(w);
 		}
+		this.blocks = blocks;
 	}
 });
